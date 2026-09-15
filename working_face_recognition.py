@@ -4,6 +4,7 @@ Complete working face recognition system that actually uses the ArcFace ONNX mod
 This is the real face recognition + servo tracking system you want.
 """
 import cv2
+import json
 import numpy as np
 import onnxruntime as ort
 import pickle
@@ -21,6 +22,44 @@ try:
     SERIAL_AVAILABLE = True
 except ImportError:
     SERIAL_AVAILABLE = False
+
+CONFIG_FILE = "camera_config.json"
+
+
+def load_camera_index():
+    """Read the camera index chosen by pick_camera.py (default 2)."""
+    try:
+        with open(CONFIG_FILE) as f:
+            return int(json.load(f)["camera_index"])
+    except Exception:
+        return 2
+
+
+def open_camera(index):
+    """Open a camera, keeping its native format/field of view."""
+    for api in (cv2.CAP_DSHOW, cv2.CAP_MSMF):
+        try:
+            cap = cv2.VideoCapture(index, api)
+        except Exception:
+            continue
+        if not cap.isOpened():
+            cap.release()
+            continue
+        try:
+            ok, frame = cap.read()
+            good = ok and frame is not None and float(frame.mean()) > 10
+        except Exception:
+            good = False
+        if good:
+            print(f"[CAM] Camera index {index} via {cap.getBackendName()}")
+            return cap
+        cap.release()
+
+    cap = cv2.VideoCapture(index)
+    if cap.isOpened():
+        print(f"[CAM] Camera index {index} (default backend)")
+        return cap
+    return None
 
 class ArcFaceRecognizer:
     """ArcFace recognition with five-point alignment and a shared database."""
@@ -104,10 +143,10 @@ class ArcFaceRecognizer:
     def enroll_person(self, name, auto_save_every=5, save_on_quit=True):
         """Enroll a person using five-point aligned faces and save the shared DB."""
         print(f"\n[CAPTURE] Enrolling: {name}")
-        print("[CAPTURE] USB camera index 2 | SPACE=capture | s=save | q=quit")
-        
-        cap = cv2.VideoCapture(2)
-        if not cap.isOpened():
+        print("[CAPTURE] SPACE=capture | s=save | q=quit")
+
+        cap = open_camera(load_camera_index())
+        if cap is None:
             print("[ERR] USB camera not available")
             return False
         
@@ -261,16 +300,27 @@ class ServoController:
             print("[WARN]  PySerial not available - servo tracking disabled")
     
     def _test_communication(self):
-        """Test if ESP8266 is responding properly."""
-        try:
-            self.serial_conn.write(b"90\r\n")
-            self.serial_conn.flush()
+        """Test if ESP8266 is responding properly (retries while it boots)."""
+        for attempt in range(5):
+            try:
+                self.serial_conn.reset_input_buffer()
+                self.serial_conn.write(b"90\r\n")
+                self.serial_conn.flush()
+                time.sleep(0.8)
+                if self.serial_conn.in_waiting > 0:
+                    response = self.serial_conn.readline().decode('utf-8', errors='ignore').strip()
+                    if "tracker" in response or "angle" in response:
+                        return True
+                print(f"[WARN]  Servo handshake attempt {attempt + 1}/5 no valid response")
+            except Exception as e:
+                print(f"[WARN]  Handshake attempt {attempt + 1}/5 failed: {e}")
+                time.sleep(0.5)
+                try:
+                    self.serial_conn.close()
+                    self.serial_conn = serial.Serial(self.port, self.baud, timeout=3, write_timeout=2)
+                except Exception:
+                    pass
             time.sleep(0.5)
-            if self.serial_conn.in_waiting > 0:
-                response = self.serial_conn.readline().decode('utf-8', errors='ignore').strip()
-                return "tracker" in response or "angle" in response
-        except Exception as e:
-            print(f"Communication test failed: {e}")
         return False
     
     def move_to_angle(self, angle):
@@ -358,8 +408,8 @@ def main_recognition():
         print("[ERR] No enrolled faces found! Run enrollment first.")
         return
     
-    cap = cv2.VideoCapture(2)
-    if not cap.isOpened():
+    cap = open_camera(load_camera_index())
+    if cap is None:
         print("[ERR] Camera not available")
         return
     
@@ -373,7 +423,14 @@ def main_recognition():
         while True:
             ret, frame = cap.read()
             if not ret:
-                break
+                time.sleep(0.05)
+                retries = getattr(main_recognition, '_retries', 0) + 1
+                main_recognition._retries = retries
+                if retries > 30:
+                    print("[ERR] Camera lost")
+                    break
+                continue
+            main_recognition._retries = 0
             
             h, w = frame.shape[:2]
             results = recognizer.recognize_frame(frame)
