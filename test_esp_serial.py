@@ -10,7 +10,7 @@ def test_esp8266_communication():
     
     try:
         # Connect to ESP8266
-        ser = serial.Serial("COM3", 115200, timeout=2)
+        ser = serial.Serial("COM4", 115200, timeout=2)
         time.sleep(3)  # Wait for ESP8266 to boot
         
         print("✅ Serial connection established")
@@ -50,9 +50,9 @@ def test_esp8266_communication():
     except serial.SerialException as e:
         print(f"❌ Serial error: {e}")
         print("💡 Check:")
-        print("   - ESP8266 connected to COM3")
+        print("   - ESP8266 connected to COM4")
         print("   - Correct baud rate (115200)")
-        print("   - No other programs using COM3")
+        print("   - No other programs using COM4")
     except Exception as e:
         print(f"❌ Error: {e}")
 

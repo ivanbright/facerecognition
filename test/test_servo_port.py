@@ -3,16 +3,16 @@ import serial.tools.list_ports
 import time
 import sys
 
-print('Checking COM3...')
+print('Checking COM4...')
 ports = serial.tools.list_ports.comports()
 for p in ports:
-    if 'COM3' in p.device:
+    if 'COM4' in p.device:
         print(f'Found: {p.device} - {p.description}')
 
 print()
 print('Attempting connection...')
 try:
-    ser = serial.Serial('COM3', 115200, timeout=2, write_timeout=2)
+    ser = serial.Serial('COM4', 115200, timeout=2, write_timeout=2)
     time.sleep(1)
     ser.reset_input_buffer()
     ser.reset_output_buffer()

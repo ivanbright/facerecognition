@@ -65,7 +65,7 @@ except ImportError:
 # Servo tracking config
 # -------------------------
 # Serial port and baud rate — must match the ESP8266 sketch
-SERIAL_PORT = "COM3"
+SERIAL_PORT = "COM4"
 SERIAL_BAUD = 115200
 
 # Servo range (degrees)

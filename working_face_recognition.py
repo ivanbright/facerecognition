@@ -258,7 +258,7 @@ class ArcFaceRecognizer:
 class ServoController:
     """ESP8266 servo controller for face tracking."""
     
-    def __init__(self, port="COM3", baud=115200):
+    def __init__(self, port="COM4", baud=115200):
         self.port = port
         self.baud = baud
         self.serial_conn = None

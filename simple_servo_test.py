@@ -12,7 +12,7 @@ def simple_servo_test():
     try:
         # Connect
         print("🔌 Connecting to ESP8266...")
-        ser = serial.Serial("COM3", 115200, timeout=2)
+        ser = serial.Serial("COM4", 115200, timeout=2)
         time.sleep(2)
         
         # Clear buffer

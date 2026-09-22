@@ -88,7 +88,7 @@ The servo follows the detected face horizontally. Press `t` to toggle tracking o
 
 | Symptom | Likely Cause | Fix |
 |---------|-------------|-----|
-| `[tracking] Serial port COM3 unavailable` | Port open in another program | Close Arduino Serial Monitor or other terminal |
+| `[tracking] Serial port COM4 unavailable` | Port open in another program | Close Arduino Serial Monitor or other terminal |
 | Servo twitches then board resets | Insufficient power | Use external 5V supply for servo |
 | Servo doesn't move at all | Wrong GPIO pin | Confirm `SERVO_PIN` matches your board's pinout |
 | Tracking stutters | Gain or deadzone too aggressive | Adjust `SERVO_GAIN`, `TRACKING_DEADZONE`, `TRACKING_STEP_ALPHA` in `src/recognize.py` |

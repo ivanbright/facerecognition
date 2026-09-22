@@ -11,7 +11,7 @@ def check_esp_status():
     try:
         # Try to connect
         print("🔌 Attempting connection...")
-        ser = serial.Serial("COM3", 115200, timeout=1)
+        ser = serial.Serial("COM4", 115200, timeout=1)
         time.sleep(2)
         
         print("✅ Serial port opened successfully")
@@ -55,7 +55,7 @@ def check_esp_status():
         print("\n🔧 Troubleshooting:")
         print("   1. Check if Arduino IDE Serial Monitor is closed")
         print("   2. Try unplugging/replugging the ESP8266")
-        print("   3. Check if COM3 is the correct port")
+        print("   3. Check if COM4 is the correct port")
         
     except Exception as e:
         print(f"❌ Unexpected error: {e}")

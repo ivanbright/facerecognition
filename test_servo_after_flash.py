@@ -11,7 +11,7 @@ def test_servo_after_flash():
     try:
         # Connect with longer timeout for initialization
         print("🔌 Connecting to ESP8266...")
-        ser = serial.Serial("COM3", 115200, timeout=3)
+        ser = serial.Serial("COM4", 115200, timeout=3)
         time.sleep(3)  # Wait for ESP8266 boot and servo initialization
         
         print("✅ Serial connection established")

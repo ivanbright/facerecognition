@@ -34,7 +34,7 @@ except ImportError:
 # -------------------------
 # Config
 # -------------------------
-SERIAL_PORT = "COM3"
+SERIAL_PORT = "COM4"
 BAUD_RATE = 115200
 TIMEOUT_S = 2.0       # serial read timeout
 SETTLE_MS = 300       # ms to wait after sending an angle (servo needs time to move)

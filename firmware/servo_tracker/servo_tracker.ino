@@ -10,7 +10,7 @@
 
 #include <Servo.h>
 
-const int SERVO_PIN = 2;
+const int SERVO_PIN = 5;
 const int CENTER_ANGLE = 90;
 Servo myServo;
 
