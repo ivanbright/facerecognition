@@ -113,6 +113,9 @@ webcam -> Haar finds a face -> MediaPipe gets 5 points (eyes, nose, mouth)
   on autofocus and max sharpness by default (`--no-quality` to skip) and
   reports measured sharpness on startup.
 - Smile detection is adaptive: it learns your neutral mouth width, so a fixed
-  threshold won't work. If it reads NEUTRAL while you grin, lower `--smile-on`.
+  threshold won't work, and the rise must hold `--smile-frames` frames so
+  talking/jitters don't fire it. Watch `smile neu d` in the overlay. If it
+  reads SMILE while you're calm, raise `--smile-on` and/or `--smile-frames`.
+  If it reads NEUTRAL while you grin, lower `--smile-on`.
 - Part 2 works in a window around the last known face once locked, so it stays
   fast even at 720p — the fps readout is at the top right.

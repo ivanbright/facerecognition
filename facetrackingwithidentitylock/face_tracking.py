@@ -418,6 +418,8 @@ def signal_dict(state, target, locked, frame_n, position=None, face_state=None, 
             ear=round(face_state.ear, 4),
             smiling=bool(face_state.smiling),
             smile_score=round(face_state.smile_score, 4),
+            smile_neutral=round(face_state.smile_neutral, 4),
+            smile_delta=round(face_state.smile_delta, 4),
             blink_total=blink_total,
         )
     return d
@@ -456,6 +458,8 @@ def main():
                         help="smile trigger: rise of mouth/face ratio above neutral")
     parser.add_argument("--smile-off", type=float, default=0.035,
                         help="smile release: drop below neutral + this value")
+    parser.add_argument("--smile-frames", type=int, default=4,
+                        help="consecutive frames the rise must hold to trigger")
     parser.add_argument("--list-cameras", action="store_true",
                         help="probe camera indices/backends and exit (diagnostics)")
     args = parser.parse_args()
@@ -487,6 +491,7 @@ def main():
     signals = FaceSignalExtractor(
         smile_delta_on=args.smile_on,
         smile_delta_off=args.smile_off,
+        smile_on_frames=args.smile_frames,
     )
 
     index = args.camera if args.camera is not None else load_camera_index()
@@ -508,7 +513,7 @@ def main():
     print(f"[LOCK] Identity lock target: '{target}'")
     print(f"[LOCK] Enrolled: {names}")
     print(f"[LOCK] threshold(dist)={args.threshold:.2f}  camera={index}")
-    print(f"[LOCK] smile on>={args.smile_on:.3f} off<{args.smile_off:.3f} above neutral")
+    print(f"[LOCK] smile on>={args.smile_on:.3f} off<={args.smile_off:.3f} hold>={args.smile_frames} frames")
     if not args.signal:
         print("Press 'q' to quit")
 
@@ -546,7 +551,9 @@ def main():
                     draw_label(view, f"{eye_text}  blinks={blink_total}",
                                (x1, max(78, y1 - 25)), (255, 255, 0))
                     draw_label(view, f"EAR={face_state.ear:.3f} "
-                                     f"smile={face_state.smile_score:.3f}",
+                                     f"smile={face_state.smile_score:.3f} "
+                                     f"neu={face_state.smile_neutral:.3f} "
+                                     f"d={face_state.smile_delta:+.3f}",
                                (12, view.shape[0] - 18), (255, 255, 255), 0.52)
                 draw_label(view,
                            f"H={position.horizontal} V={position.vertical} "

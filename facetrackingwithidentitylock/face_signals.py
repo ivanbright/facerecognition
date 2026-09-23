@@ -17,7 +17,9 @@ Signals produced per locked face:
     smile_score  mouth_width / face_width (raw measure, shown on screen)
     smiling      adaptive: True when the current smile_score rises at least
                  smile_delta_on above the person's own slowly-tracked neutral
-                 ratio, and stays True until it falls below smile_delta_off.
+                 ratio and STAYS there for smile_on_frames consecutive frames
+                 (talking/mouth-jitter spikes do not fire it), and stays True
+                 until it sits below smile_delta_off for smile_off_frames.
                  A fixed threshold is unreliable because neutral mouth width
                  differs per person and per camera.
 """
@@ -67,6 +69,8 @@ class FaceSignals:
     eyes_closed: bool
     smile_score: float
     smiling: bool
+    smile_neutral: float = 0.0
+    smile_delta: float = 0.0
 
 
 class FaceSignalExtractor:
@@ -79,6 +83,8 @@ class FaceSignalExtractor:
         smile_delta_on: float = 0.05,
         smile_delta_off: float = 0.035,
         neutral_rate: float = 0.05,
+        smile_on_frames: int = 4,
+        smile_off_frames: int = 6,
         landmarker_path: Optional[os.PathLike] = None,
     ):
         self.ear_threshold = ear_threshold
@@ -88,9 +94,13 @@ class FaceSignalExtractor:
         self.smile_delta_on = smile_delta_on
         self.smile_delta_off = smile_delta_off
         self.neutral_rate = neutral_rate
+        self.smile_on_frames = max(1, int(smile_on_frames))
+        self.smile_off_frames = max(1, int(smile_off_frames))
         self.low_ear_frames = 0
         self.smiling = False
         self._neutral = None
+        self._above_frames = 0
+        self._below_frames = 0
 
         if mp is None:
             raise RuntimeError(f"mediapipe import failed: {_MP_IMPORT_ERROR}")
@@ -122,6 +132,8 @@ class FaceSignalExtractor:
         self.low_ear_frames = 0
         self.smiling = False
         self._neutral = None
+        self._above_frames = 0
+        self._below_frames = 0
 
     def close(self) -> None:
         try:
@@ -174,30 +186,47 @@ class FaceSignalExtractor:
 
         self._update_smile(smile_score)
 
+        delta = 0.0 if self._neutral is None else smile_score - self._neutral
         return FaceSignals(
             ear=ear,
             blink=blink,
             eyes_closed=eyes_closed,
             smile_score=smile_score,
             smiling=self.smiling,
+            smile_neutral=0.0 if self._neutral is None else self._neutral,
+            smile_delta=delta,
         )
 
     def _update_smile(self, score: float) -> None:
         """
         Adaptive smile: learn the person's neutral mouth-width ratio and treat
-        a rise above it (by smile_delta_on) as a smile. Once smiling, it
-        persists until the score falls back within smile_delta_off of neutral,
-        so it does not chatter around the edge and it adapts to any face/camera.
+        a rise above it (by smile_delta_on) as a smile. The rise must hold for
+        smile_on_frames consecutive frames so talking / mouth-jitter spikes
+        (single-frame width blips) do not fire it. Once smiling it persists
+        until the score stays below smile_delta_off for smile_off_frames,
+        so it neither chatters nor latches. Neutral only creeps on calm frames
+        (score near neutral), so it anchors to the resting mouth instead of
+        chasing a grin or a big mouth-open.
         """
         if self._neutral is None:
             self._neutral = score
             return
+        delta = score - self._neutral
         if not self.smiling:
-            drift = score - self._neutral
-            if abs(drift) < 0.03 or drift < 0:
-                self._neutral += self.neutral_rate * drift
-            if score - self._neutral > self.smile_delta_on:
+            if abs(delta) <= self.smile_delta_off:
+                self._neutral += self.neutral_rate * delta
+            if delta > self.smile_delta_on:
+                self._above_frames += 1
+            else:
+                self._above_frames = 0
+            if self._above_frames >= self.smile_on_frames:
                 self.smiling = True
+                self._below_frames = 0
         else:
-            if score - self._neutral < self.smile_delta_off:
+            if delta < self.smile_delta_off:
+                self._below_frames += 1
+            else:
+                self._below_frames = 0
+            if self._below_frames >= self.smile_off_frames:
                 self.smiling = False
+                self._above_frames = 0

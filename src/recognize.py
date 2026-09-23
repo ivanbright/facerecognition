@@ -227,7 +227,7 @@ def load_db_npz(db_path: Path) -> Dict[str, np.ndarray]:
 class ArcFaceEmbedderONNX:
     """
     ArcFace-style ONNX embedder.
-    Input: 112x112 BGR -> internally RGB + (x-127.5)/128, NCHW float32.
+    Input: 112x112 BGR -> internally RGB + (x-127.5)/128, then NCHW float32.
     Output: (1,D) or (D,)
     """
 
@@ -255,6 +255,12 @@ class ArcFaceEmbedderONNX:
         self.sess = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
         self.in_name = self.sess.get_inputs()[0].name
         self.out_name = self.sess.get_outputs()[0].name
+        in_shape = self.sess.get_inputs()[0].shape
+        # The w600k_r50.onnx graph does NOT normalize pixels internally.
+        # Verified empirically: feeding raw 0..255 saturates the network and all
+        # embeddings collapse to the same vector (matched every face). Correct
+        # input is NCHW float32 already normalized to (x-127.5)/128.
+        self._channels_first = bool(len(in_shape) == 4 and in_shape[1] == 3)
 
         if self.debug:
             print("[embed] model:", model_path)
@@ -270,8 +276,10 @@ self.sess.get_outputs()[0].type)
 
         rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32)
         rgb = (rgb - 127.5) / 128.0
-        # Keep NHWC format (batch, height, width, channels) for this model
-        x = rgb[None, ...]  # Add batch dimension: (1, 112, 112, 3)
+        if self._channels_first:
+            x = np.ascontiguousarray(rgb.transpose(2, 0, 1))[None, ...]  # (1, 3, 112, 112)
+        else:
+            x = rgb[None, ...]  # (1, 112, 112, 3)
         return x.astype(np.float32)
 
     @staticmethod

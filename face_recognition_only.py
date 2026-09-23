@@ -24,6 +24,7 @@ class ArcFaceRecognizer:
         self.output_name = self.session.get_outputs()[0].name
         
         input_shape = self.session.get_inputs()[0].shape
+        self._channels_first = bool(len(input_shape) == 4 and input_shape[1] == 3)
         print(f"✅ ArcFace ONNX loaded: {input_shape} → 512D embeddings")
         
         # Face detector (Haar - reliable)
@@ -42,10 +43,12 @@ class ArcFaceRecognizer:
     def preprocess_face(self, face_img):
         """Preprocess face image for ArcFace ONNX model."""
         face_resized = cv2.resize(face_img, (112, 112))
-        face_rgb = cv2.cvtColor(face_resized, cv2.COLOR_BGR2RGB)
-        face_norm = (face_rgb.astype(np.float32) - 127.5) / 128.0
-        face_batch = np.expand_dims(face_norm, axis=0)
-        return face_batch
+        rgb = cv2.cvtColor(face_resized, cv2.COLOR_BGR2RGB).astype(np.float32)
+        rgb = (rgb - 127.5) / 128.0
+        if self._channels_first:
+            x = np.ascontiguousarray(rgb.transpose(2, 0, 1))[None, ...]
+            return x.astype(np.float32)
+        return np.expand_dims(rgb, axis=0)
     
     def get_embedding(self, face_img):
         """Get 512D embedding from face image using ArcFace ONNX."""
