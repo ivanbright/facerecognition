@@ -1,5 +1,9 @@
 # Face Tracking Thing (A.K.A. "please just follow me, servo")
 
+> The face-locking project (identity lock + smile/blink/position signal, no
+> hardware) also has its own repo: **https://github.com/ivanbright/FaceLocking**.
+> This repo is the full rig — enrollment, recognition, servo, and firmware.
+
 A small project where a camera on a little servo pans around to follow *my*
 face — not strangers, not the cat, just people I actually enrolled.
 

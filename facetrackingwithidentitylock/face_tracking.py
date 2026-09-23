@@ -60,6 +60,39 @@ def load_camera_index() -> int:
         return 0
 
 
+def list_cameras(max_index: int = 9) -> None:
+    """Probe camera indices with both backends so a friend's machine can be
+    diagnosed without the project: which index opens, which backend works,
+    and at what resolution."""
+    print(f"[CAM] Probing camera indices 0..{max_index}")
+    for index in range(0, max_index + 1):
+        results = []
+        for api in (cv2.CAP_DSHOW, cv2.CAP_MSMF):
+            name = "DSHOW" if api == cv2.CAP_DSHOW else "MSMF"
+            try:
+                cap = cv2.VideoCapture(index, api)
+            except Exception as exc:
+                results.append(f"{name}: threw {exc}")
+                continue
+            if not cap.isOpened():
+                results.append(f"{name}: could not open")
+                cap.release()
+                continue
+            ok, frame = cap.read()
+            if ok and frame is not None:
+                results.append(f"{cap.getBackendName()}: OK "
+                               f"{frame.shape[1]}x{frame.shape[0]}")
+            else:
+                results.append(f"{cap.getBackendName()}: opened but no frame")
+            cap.release()
+        print(f"[CAM] index {index}: " + " | ".join(results))
+    print("[CAM] Hints:")
+    print("[CAM]  1. Close apps using the camera (browser, Teams, Zoom, ...).")
+    print("[CAM]  2. Windows Settings > Privacy > Camera: allow desktop apps.")
+    print("[CAM]  3. Unplug and replug the USB camera, then rerun this.")
+    print("[CAM]  4. If the OK index is not in camera_config.json, change it.")
+
+
 def open_camera(index: int, width: int = 0, height: int = 0,
                 apply_quality: bool = True, overrides: Optional[dict] = None):
     """
@@ -72,9 +105,11 @@ def open_camera(index: int, width: int = 0, height: int = 0,
     for api in (cv2.CAP_DSHOW, cv2.CAP_MSMF):
         try:
             cap = cv2.VideoCapture(index, api)
-        except Exception:
+        except Exception as exc:
+            print(f"[CAM] backend {api} threw: {exc}")
             continue
         if not cap.isOpened():
+            print(f"[CAM] backend {cap.getBackendName()} could not open index {index}")
             cap.release()
             continue
         if width > 0 and height > 0:
@@ -88,6 +123,9 @@ def open_camera(index: int, width: int = 0, height: int = 0,
                 _apply_camera_quality(cap, overrides)
             _camera_report(cap)
             return cap
+        mean = float(frame.mean()) if frame is not None else "n/a"
+        print(f"[CAM] backend {cap.getBackendName()} opened index {index} "
+              f"but the frame is unusable (mean={mean})")
         cap.release()
     cap = cv2.VideoCapture(index)
     if cap.isOpened():
@@ -418,7 +456,13 @@ def main():
                         help="smile trigger: rise of mouth/face ratio above neutral")
     parser.add_argument("--smile-off", type=float, default=0.035,
                         help="smile release: drop below neutral + this value")
+    parser.add_argument("--list-cameras", action="store_true",
+                        help="probe camera indices/backends and exit (diagnostics)")
     args = parser.parse_args()
+
+    if args.list_cameras:
+        list_cameras()
+        return
 
     detector = HaarFaceMesh5pt(min_size=(70, 70), debug=False)
     embedder = ArcFaceEmbedderONNX(
@@ -454,6 +498,10 @@ def main():
     cap = open_camera(index, args.width, args.height, not args.no_quality, overrides)
     if cap is None:
         print(f"[CAM] Camera index {index} not available")
+        print("[CAM] Run 'python face_tracking.py --list-cameras' to see which")
+        print("[CAM] index/backend works, then update camera_config.json or use --camera.")
+        print("[CAM] Also: close apps using the camera, allow desktop apps under")
+        print("[CAM] Windows Settings > Privacy > Camera, and replug the USB camera.")
         signals.close()
         return
 
