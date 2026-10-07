@@ -19,7 +19,7 @@ face — not strangers, not the cat, just people I actually enrolled.
 1. Install the usual suspects:
 
    ```bash
-   pip install opencv-python onnxruntime numpy pyserial mediapipe
+   pip install opencv-python onnxruntime numpy pyserial mediapipe paho-mqtt
    ```
 
 2. Put the ArcFace model at `models/embedder_arcface.onnx`
@@ -78,6 +78,79 @@ landmarker is new):
 Note: the `deepinsight/insightface` HuggingFace repo is login-gated — use the
 GitHub release or the `deepghs` mirror above.
 
+## Part 3: MQTT → ESP8266 → 28BYJ-48 tachometer needle
+
+Same recognition pipeline, but the locked face's **horizontal** position now
+drives a physical needle. Only the *trained* face moves it — unknown faces
+publish `recognized: false` and the needle holds.
+
+```
+webcam -> existing identity lock -> smoothed face center X
+  -> calibrated camera_x -> motor-position map (piecewise, clamped)
+  -> Paho MQTT (topic face_track) -> Mosquitto -> Wi-Fi
+  -> ESP8266 (mqtt_stepper.ino) -> 28BYJ-48 (ULN2003) -> needle
+```
+
+Part 3 lives in its **own project folder**, `face_needle_tracker/`, mapped to
+the existing code through the filesystem (NTFS junctions):
+`face_needle_tracker/facetrackingwithidentitylock`, `src`, `models` and `data`
+are links into the same repo, so the old project is reused without copying a
+single line. `facetrackingwithidentitylock/` itself stays the Part 2 software
+only. Config lives in `face_needle_tracker/mqtt_config.json`.
+
+Python side:
+
+```bash
+# calibrate camera X <-> needle reference positions first (GUI, no code edits)
+python face_needle_tracker/calibrate_position.py --target bright
+
+# then run the tracker publishing over MQTT
+python face_needle_tracker/needle_track.py --target bright --mqtt
+```
+
+- `calibrate_position.py`: lock the target, then for each reference point move
+  your face so the needle is physically at that reference and press its number
+  key `1..N`; `s` saves `data/calibration.json` (the `data` junction puts it in
+  the shared folder, reloaded next run), `r` resets, `q` quits. Prints the
+  table + an ASCII camera→motor plot.
+- `needle_track.py --mqtt`: publishes compact JSON to `face_track`
+  (`recognized, x, position, confidence, frame_width, timestamp`), throttled by
+  `publish_interval_s`. A center line, `X/SM/[LEFT|CENTER|RIGHT]` and the
+  calibrated needle steps are drawn in the overlay for debugging.
+- Independent subscriber (verifies Python→Mosquitto, and is exactly what the
+  ESP8266 sees):
+  ```bash
+  python face_needle_tracker/mqtt_listen.py --broker localhost
+  ```
+- Firmware: `face_needle_tracker/firmware/mqtt_stepper/mqtt_stepper.ino` —
+  paste the calibration arrays from `data/calibration.json` into
+  `CAM_X[]`/`MOTOR_STEPS[]`, set Wi-Fi and `MQTT_BROKER` (the PC's LAN IP,
+  never localhost), flash with Arduino IDE.
+
+Behavior:
+- Only `recognized: true` moves the needle. `recognized: false` → hold.
+- Motor is stateful: `current` vs `target` position, direction = diff sign,
+  absolute step counts, clamped to `MIN/MAX_MOTOR_POSITION`.
+- Non-blocking: `MAX_STEPS_PER_LOOP` steps per loop, then MQTT is serviced, so
+  the needle follows a moving face instead of finishing old commands first.
+- Lost face → hold; movement stops after `FACE_LOST_GRACE_MS` without a
+  recognized message. No homing (no limit switch) — the calibrated position is
+  the software reference.
+- No Y axis, no naive `x / width * 180`: the pixel→steps mapping comes from
+  your calibration points, interpolated and clamped.
+
+### Suggested test order
+
+1. **Recognition** — target still locks (previous sections).
+2. **Horizontal** — move face L→C→R, watch `X` change, `Y` has no effect.
+3. **Dead zone** — small moves near center must not flicker LEFT/RIGHT.
+4. **Smoothing** — jitter is filtered, tracking still feels live.
+5. **MQTT** — run `mqtt_listen.py` and see the JSON stream.
+6. **ESP receive** — flash `mqtt_stepper.ino`, Serial Monitor prints x/target/current.
+7. **Motor** — direction, limits, current-position tracking.
+8. **Calibrate** — several real camera→needle points via `calibrate_position.py`.
+9. **End-to-end** — move face LEFT → CENTER → RIGHT → CENTER → LEFT; needle follows smoothly.
+
 ## How it thinks
 
 ```
@@ -96,8 +169,14 @@ webcam -> Haar finds a face -> MediaPipe gets 5 points (eyes, nose, mouth)
 | `src/landmarks.py` | Just shows the 5 points so you can debug the box |
 | `facetrackingwithidentitylock/face_tracking.py` | Part 2: identity lock, error signal, smile/blink (GUI + `--signal`) |
 | `facetrackingwithidentitylock/face_signals.py` | EAR/blink/eyes-closed + adaptive smile from the locked face |
+| `face_needle_tracker/needle_track.py` | Part 3: runner that reuses `face_tracking.py` via the junction + publishes over MQTT |
+| `face_needle_tracker/track_position.py` | Part 3: horizontal state, calibrated camera→motor map, Paho publisher |
+| `face_needle_tracker/calibrate_position.py` | Part 3: interactive camera↔needle calibration GUI |
+| `face_needle_tracker/mqtt_listen.py` | Part 3: independent MQTT subscriber (test tool) |
+| `face_needle_tracker/mqtt_config.json` | Part 3: broker, topic, smoothing/dead-zone, calibration, motor limits |
 | `test/test_servo_port.py` | Quick check that the ESP talks back |
 | `firmware/servo_tracker/servo_tracker.ino` | The servo firmware |
+| `face_needle_tracker/firmware/mqtt_stepper/mqtt_stepper.ino` | Part 3: MQTT subscriber + 28BYJ-48 needle driver |
 
 ## Things that bit me
 

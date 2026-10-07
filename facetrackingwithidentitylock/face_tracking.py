@@ -256,6 +256,7 @@ class LockedFaceTracker:
         self.smooth_center = None
         self.lost_frames = 0
         self.frame_index = 0
+        self.last_match = None  # last verified MatchResult (confidence feed for consumers)
 
     @staticmethod
     def box(face):
@@ -267,6 +268,7 @@ class LockedFaceTracker:
 
     def target_is_verified(self, frame, face) -> bool:
         match = self.identity(frame, face)
+        self.last_match = match
         return match.accepted and match.name == self.target_name
 
     def acquire(self, frame, faces):
@@ -274,6 +276,7 @@ class LockedFaceTracker:
         best_similarity = -1.0
         for face in faces:
             match = self.identity(frame, face)
+            self.last_match = match
             if (
                 match.accepted
                 and match.name == self.target_name

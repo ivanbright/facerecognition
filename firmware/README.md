@@ -1,3 +1,12 @@
+# Firmware
+
+Two rigs live here:
+
+1. `servo_tracker/` - the older serial SERVO rig (below).
+2. The Part 3 needle rig moved into its own project: `face_needle_tracker/firmware/mqtt_stepper/` (MQTT + 28BYJ-48 tachometer needle, section at the end).
+
+---
+
 # Servo Tracker Firmware
 
 ESP8266 firmware for the face-tracking camera rig. The servo pans a camera mount horizontally to follow a detected face.
@@ -92,3 +101,52 @@ The servo follows the detected face horizontally. Press `t` to toggle tracking o
 | Servo twitches then board resets | Insufficient power | Use external 5V supply for servo |
 | Servo doesn't move at all | Wrong GPIO pin | Confirm `SERVO_PIN` matches your board's pinout |
 | Tracking stutters | Gain or deadzone too aggressive | Adjust `SERVO_GAIN`, `TRACKING_DEADZONE`, `TRACKING_STEP_ALPHA` in `src/recognize.py` |
+
+---
+
+# Part 3: mqtt_stepper.ino (MQTT + 28BYJ-48 tachometer needle)
+
+Lives in the **new project folder**: `face_needle_tracker/firmware/mqtt_stepper/mqtt_stepper.ino`.
+
+The needle rig. ESP8266 subscribes to `face_track` on a Mosquitto broker,
+maps the recognized face's smoothed camera X to an absolute motor position
+(piecewise-linear, clamped), and drives a 28BYJ-48 through a ULN2003 driver.
+Stateful, non-blocking: current vs target position, bounded steps per loop.
+
+## Wiring (28BYJ-48 / ULN2003)
+
+| Motor wire (ULN board) | ESP8266 GPIO | NodeMCU label |
+|------------------------|-------------|---------------|
+| IN1                    | GPIO0       | D3            |
+| IN2                    | GPIO2       | D4            |
+| IN3                    | GPIO4       | D2            |
+| IN4                    | GPIO5       | D1            |
+| Motor 5-12V / GND      | external PSU | common GND   |
+
+Verify pin labels against your board's silkscreen; they are `#define`s at the
+top of the sketch. The stepper's `VCC` should come from its driver supply, not
+the ESP's 3.3V.
+
+## Before flashing
+
+Edit the top of `mqtt_stepper.ino`:
+
+- `WIFI_SSID` / `WIFI_PASS`
+- `MQTT_BROKER` = the PC's LAN IP (never `localhost` on the ESP)
+- Calibration arrays `CAM_X[]` / `MOTOR_STEPS[]` — paste the values that the
+  PC-side calibration produces (see main README, Part 3 calibration), and set
+  `CAL_N` to match.
+
+## Motor step model
+
+- 28BYJ-48: 64 motor steps x 64:1 gear = **4096 half-steps per revolution**
+  (~2048 full-steps). The firmware drives a standard 8-phase half-step
+  sequence.
+- `MAX_MOTOR_POSITION` etc. are absolute *software* step counts from the
+  documented reference (the sketch starts at `MIN_MOTOR_POSITION`; there is no
+  limit switch / homing, so the reference is calibrated instead).
+- If the needle mirrors the face, set `DIRECTION_FLIP = true`.
+
+## Libraries
+
+`PubSubClient` and `ArduinoJson` (v6) via the Arduino Library Manager.

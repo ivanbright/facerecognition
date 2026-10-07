@@ -1,0 +1,26 @@
+{
+  "broker": "10.12.73.27",
+  "port": 1883,
+  "topic": "face_track",
+  "publish_interval_s": 0.10,
+  "dead_zone_ratio": 0.07,
+  "smoothing_alpha": 0.30,
+  "face_lost_timeout_s": 2.0,
+  "calibration": {
+    "file": "data/calibration.json",
+    "points": [
+      { "name": "left",        "camera_x": 100, "motor_position": 100 },
+      { "name": "il",          "camera_x": 200, "motor_position": 500 },
+      { "name": "center",      "camera_x": 320, "motor_position": 1024 },
+      { "name": "ir",          "camera_x": 430, "motor_position": 1500 },
+      { "name": "right",       "camera_x": 545, "motor_position": 1948 }
+    ]
+  },
+  "motor": {
+    "min_position": 0,
+    "max_position": 2048,
+    "position_tolerance": 2,
+    "step_delay_ms": 2,
+    "max_steps_per_loop": 2
+  }
+}

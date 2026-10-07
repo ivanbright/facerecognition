@@ -12,6 +12,12 @@ models/*.task
 # Local data / enrollment database
 data/
 
+# Face-needle tracker directory junctions (point back into this repo's folders)
+face_needle_tracker/data/
+face_needle_tracker/facetrackingwithidentitylock/
+face_needle_tracker/models/
+face_needle_tracker/src/
+
 # IDE / OS
 .vscode/
 .idea/
