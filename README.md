@@ -3,6 +3,13 @@
 > The face-locking project (identity lock + smile/blink/position signal, no
 > hardware) also has its own repo: **https://github.com/ivanbright/FaceLocking**.
 > This repo is the full rig — enrollment, recognition, servo, and firmware.
+>
+> Related projects (each easy to clone on its own):
+> - **https://github.com/ivanbright/FaceLocking** — Part 2, identity lock only
+>   (the code here is the source of truth; that repo mirrors it).
+> - **https://github.com/ivanbright/face-needle-tracker** — Part 3, the
+>   face→stepper needle rig (horizontal + vertical tracking) built on top of
+>   Part 1 (`src/`) and Part 2 (`facetrackingwithidentitylock/`).
 
 A small project where a camera on a little servo pans around to follow *my*
 face — not strangers, not the cat, just people I actually enrolled.
